@@ -9,7 +9,9 @@ import VueAxios from 'vue-axios'
 import VueCookie from 'vue-cookie';
 import VuePersianDatetimePicker from 'vue-persian-datetime-picker';
 
+// development
 // axios.defaults.baseURL = `http://${location.hostname}:5000/api`;
+// production
 axios.defaults.baseURL = '/api';
 axios.defaults.timeout = 0
 Vue.component('date-picker', VuePersianDatetimePicker);

@@ -39,6 +39,7 @@ namespace adobe_manager.Hubs
                         return;
                     }
 
+                    //calculate delete progress and send percent to client
                     if (percent != (int) ((counter + 1) / vm.ids.Count * 100))
                     {
                         percent = (int) ((counter + 1) / vm.ids.Count * 100);
@@ -50,32 +51,21 @@ namespace adobe_manager.Hubs
 
                 await Clients.Caller.SendAsync("ScoDelete", vm.ids);
             }
-            catch (HttpRequestException)
-            {
-                await Clients.Caller.SendAsync("ScoDelete", new
-                {
-                    error = $"سرور {vm.url} در دسترس نیست"
-                });
-            }
-            catch (TaskCanceledException)
-            {
-                await Clients.Caller.SendAsync("ScoDelete", new
-                {
-                    error = $"سرور {vm.url} در دسترس نیست"
-                });
-            }
-            catch (TimeoutException)
-            {
-                await Clients.Caller.SendAsync("ScoDelete", new
-                {
-                    error = $"سرور {vm.url} در دسترس نیست"
-                });
-            }
             catch (Exception e)
             {
-                await Clients.Caller.SendAsync("ScoDelete",
-                    new {error = "حذف فایل ها با خطا مواجه شد"});
-                Console.WriteLine(e);
+                if (e is TimeoutException or HttpRequestException or TaskCanceledException)
+                {
+                    await Clients.Caller.SendAsync("ScoDelete", new
+                    {
+                        error = $"سرور {vm.url} در دسترس نیست"
+                    });
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("ScoDelete",
+                        new {error = "حذف فایل ها با خطا مواجه شد"});
+                    Console.WriteLine(e);
+                }
             }
         }
 
@@ -110,14 +100,17 @@ namespace adobe_manager.Hubs
                         var token = JObject.Parse(json);
                         if (token["expanded-scos"]?.ToString() != "")
                         {
+                            //get 4th nested first property value of token
                             var array = token.First?.First?.First?.First;
                             var expandedScos = JsonConvert.DeserializeObject<List<SCO>>(array?.ToString()!)!.Select(o =>
                                 new
                                 {
                                     o.id, o.title, o.type, o.size, o.folder_id, o.date, o.depth
                                 });
+                            //send files count to client
                             await Clients.Caller.SendAsync("FilesCount", expandedScos.Count());
 
+                            //get files sizes
                             var res = await Client.GetAsync(
                                 $"{url}/api/xml?action=sco-sizes&sco-id={scoId}&session={session}&filter-type=content&filter-gte-date-created={from_date}&filter-lte-date-created={to_date}");
                             res.EnsureSuccessStatusCode();
@@ -155,6 +148,8 @@ namespace adobe_manager.Hubs
                                         depth = t.depth
                                     };
                                     scos.Add(sco);
+
+                                    //calculate progress percent and send it to client
                                     if (percent != (int) ((counter + 1) / expandedScos.Count() * 100))
                                     {
                                         percent = (int) ((counter + 1) / expandedScos.Count() * 100);
@@ -164,40 +159,8 @@ namespace adobe_manager.Hubs
                                     counter++;
                                 }
 
+                                //send files list to user
                                 await Clients.Caller.SendAsync("GetScoExpandedContents", scos);
-                                // foreach (var t in expandedScos)
-                                // {
-                                //     var path = "";
-                                //     var folderId = t.folder_id;
-                                //     for (var i = 0; i < t.depth; i++)
-                                //     {
-                                //         var infoResponse = await Client.GetAsync(
-                                //             $"{url}/api/xml?action=sco-info&sco-id={folderId}&session={session}");
-                                //         infoResponse.EnsureSuccessStatusCode();
-                                //         var infoResponseBody = await infoResponse.Content.ReadAsStringAsync();
-                                //         var scoInfoParsedXml = XDocument.Parse(infoResponseBody);
-                                //         var infoCode = scoInfoParsedXml.Root?.Element("status")?.Attribute("code")
-                                //             ?.Value;
-                                //         if (infoCode != "ok")
-                                //         {
-                                //             await Clients.Caller.SendAsync("FilesPath",
-                                //                 new {error = "دریافت مسیر فایل ها با خطا مواجه شد"});
-                                //             return;
-                                //         }
-                                //
-                                //         var sco = scoInfoParsedXml.Root?.Element("sco");
-                                //         var scoName = sco?.Element("name")?.Value;
-                                //         var scoFolderID = sco?.Attribute("folder-id")?.Value;
-                                //         folderId = scoFolderID;
-                                //         path = $"/{scoName}{path}";
-                                //     }
-                                //
-                                //     await Clients.Caller.SendAsync("FilesPath", new
-                                //     {
-                                //         path,
-                                //         id = t.id
-                                //     });
-                                // }
                             }
                         }
                         else
@@ -238,34 +201,23 @@ namespace adobe_manager.Hubs
                         break;
                 }
             }
-            catch (HttpRequestException)
-            {
-                await Clients.Caller.SendAsync("GetScoExpandedContents", new
-                {
-                    error = $"سرور {url} در دسترس نیست"
-                });
-            }
-            catch (TaskCanceledException)
-            {
-                await Clients.Caller.SendAsync("GetScoExpandedContents", new
-                {
-                    error = $"سرور {url} در دسترس نیست"
-                });
-            }
-            catch (TimeoutException)
-            {
-                await Clients.Caller.SendAsync("GetScoExpandedContents", new
-                {
-                    error = $"سرور {url} در دسترس نیست"
-                });
-            }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                await Clients.Caller.SendAsync("GetScoExpandedContents", new
+                if (e is TimeoutException or HttpRequestException or TaskCanceledException)
                 {
-                    error = "دریافت اطلاعات با خطا مواجه شد"
-                });
+                    await Clients.Caller.SendAsync("GetScoExpandedContents", new
+                    {
+                        error = $"سرور {url} در دسترس نیست"
+                    });
+                }
+                else
+                {
+                    Console.WriteLine(e);
+                    await Clients.Caller.SendAsync("GetScoExpandedContents", new
+                    {
+                        error = "دریافت اطلاعات با خطا مواجه شد"
+                    });
+                }
             }
         }
 
@@ -299,38 +251,26 @@ namespace adobe_manager.Hubs
 
                 await Clients.Caller.SendAsync("FilePath", new
                 {
-                    path,
-                    id = vm.id
-                });
-            }
-            catch (HttpRequestException)
-            {
-                await Clients.Caller.SendAsync("FilePath", new
-                {
-                    error = $"سرور {vm.url} در دسترس نیست"
-                });
-            }
-            catch (TaskCanceledException)
-            {
-                await Clients.Caller.SendAsync("FilePath", new
-                {
-                    error = $"سرور {vm.url} در دسترس نیست"
-                });
-            }
-            catch (TimeoutException)
-            {
-                await Clients.Caller.SendAsync("FilePath", new
-                {
-                    error = $"سرور {vm.url} در دسترس نیست"
+                    path, vm.id
                 });
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                await Clients.Caller.SendAsync("FilePath", new
+                if (e is TimeoutException or HttpRequestException or TaskCanceledException)
                 {
-                    error = "دریافت مسیر فایل با خطا مواجه شد"
-                });
+                    await Clients.Caller.SendAsync("FilePath", new
+                    {
+                        error = $"سرور {vm.url} در دسترس نیست"
+                    });
+                }
+                else
+                {
+                    Console.WriteLine(e);
+                    await Clients.Caller.SendAsync("FilePath", new
+                    {
+                        error = "دریافت مسیر فایل با خطا مواجه شد"
+                    });
+                }
             }
         }
 
@@ -352,12 +292,14 @@ namespace adobe_manager.Hubs
                         var doc = new XmlDocument();
                         doc.LoadXml(scoContentsXml!);
                         var json = JsonConvert.SerializeXmlNode(doc);
+                        //get 4th nested first property value of token
                         var array = JObject.Parse(json).First?.First?.First?.First;
                         var scoContents = JsonConvert.DeserializeObject<List<Folder>>(array?.ToString()!)!.Select(o =>
                             new
                             {
                                 o.id, o.name
                             });
+                        //send folders list to client
                         await Clients.Caller.SendAsync("Folders", scoContents);
                         break;
                     case "operation-size-error":
@@ -392,34 +334,23 @@ namespace adobe_manager.Hubs
                         break;
                 }
             }
-            catch (HttpRequestException)
-            {
-                await Clients.Caller.SendAsync("Folders", new
-                {
-                    error = $"سرور {url} در دسترس نیست"
-                });
-            }
-            catch (TaskCanceledException)
-            {
-                await Clients.Caller.SendAsync("Folders", new
-                {
-                    error = $"سرور {url} در دسترس نیست"
-                });
-            }
-            catch (TimeoutException)
-            {
-                await Clients.Caller.SendAsync("Folders", new
-                {
-                    error = $"سرور {url} در دسترس نیست"
-                });
-            }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                await Clients.Caller.SendAsync("Folders", new
+                if (e is TimeoutException or HttpRequestException or TaskCanceledException)
                 {
-                    error = "دریافت اطلاعات با خطا مواجه شد"
-                });
+                    await Clients.Caller.SendAsync("Folders", new
+                    {
+                        error = $"سرور {url} در دسترس نیست"
+                    });
+                }
+                else
+                {
+                    Console.WriteLine(e);
+                    await Clients.Caller.SendAsync("Folders", new
+                    {
+                        error = "دریافت اطلاعات با خطا مواجه شد"
+                    });
+                }
             }
         }
     }
